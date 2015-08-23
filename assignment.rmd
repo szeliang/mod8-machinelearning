@@ -1,0 +1,60 @@
+## Module 8: Practical Machine Learning
+##### **Summary:** The goal of this project is to predict the manner in which participants performed an exercise. The data for this project comes from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+###### Training Data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv (downloaded on 22 Aug 2015)
+###### Test Data: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv (downloaded on 22 Aug 2015)
+###### More info: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data Cleaning & Exploration
+The raw training data contained 19622 observations of 160 variables.  
+Of the 160 variables, we shall only retain our outcome variable ("classe") and predictors.  
+We choose only the raw sensor data as predictors, and discard summary data such as kurtosis, averages, skew..etc.  
+  
+There are two reasons why we discard the summary data  
+1) Only 406 observations have such data, since they are derived by summarising raw data over a window.  
+2) They are not necessary for this exercise where we wish to predict outcomes using point-in-time (raw) data from sensors.  
+  
+After cleaning, we have 19622 observations of 52 predictors for 1 outcome, with complete data for all observations.
+```{r, echo=TRUE, cache=TRUE}
+data <- read.csv("pml-training.csv")
+t <- grep("kurtosis|skewness|max|min|amplitude|var|avg|stddev",names(data)) #identifying columns to discard
+clean_data <- data[,-(t)]
+clean_data <- clean_data[,-(1:7)] #Removal of metadata such as user names, timestamps,  window info..etc.
+length(which(complete.cases(clean_data)==TRUE)) #Checking that our observations have complete data
+```
+## Modelling
+We split the raw training data into 70/30, 70% for training and 30% for validation.
+```{r, echo=TRUE}
+library(caret)
+t <- createDataPartition(y = clean_data$classe, p = 0.7, list=FALSE)
+training <- clean_data[t,]
+testing <- clean_data[-t,]
+```
+As this is a classification problem, we choose to use the **random forest** method to train a model.  
+We will use a 3-fold cross-validation for resampling during training.
+```{r, echo=TRUE, cache=TRUE}
+set.seed(12345)
+ctrl <- trainControl(method="cv",number=3,repeats=1)
+fit <- train(classe ~ ., method="rf", data=training, trControl=ctrl)
+```
+## Results and In-Sample Error
+The results of the training are shown below, along with the importance of the different variables.  
+Despite being an initial model, the fitting already suggests very high accuracies at 98.799% with a standard deviation of only 0.00341.  
+```{r, echo=TRUE}
+fit
+varImp(fit)
+```
+## Cross-Validation and Out-of-Sample Error Estimates
+We now apply the model to our testing set for validation.  
+Remarkably, it accurately predicted the outcomes with 99.81% accuracy.  
+The 95% confidence interval of the accuracy is between 99.67% to 99.91%.
+```{r, echo=TRUE, cache=TRUE}
+predictions <- predict(fit, newdata = testing)
+actual <- testing$classe
+confusionMatrix(predictions,actual)
+```
+## Conclusion
+1. Using a random forest model and 3-folds for sampling on a dataset of 19622 observations, divided 70/30 for training and validation, we were able to obtain a predictive model that is near 100% accurate for in-sample data, with confidence that it will still remain near 100% for out-of-sample accuracy.
+  
+2. Such accuracy is unusual. One possible explanation is that, being an exercise, the participants may have exagerrated the motions associated with the various forms of incorrect weight lifting, such as how a fitness instructor may demonstrate certain actions in a more deliberate manner to make it more obvious. This may result in training data that is very easy to classify, and may omit some of the ambiguity associated with more natural situations.
+
+## Thank you.
